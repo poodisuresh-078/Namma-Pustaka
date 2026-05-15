@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Namma Pustaka</string>
+    <string name="channel_overdue_name">Overdue books</string>
+    <string name="channel_overdue_description">Reminders when borrowed books are past due</string>
+    <string name="notif_overdue_title">Overdue library books</string>
+    <string name="notif_overdue_body">%1$d book(s) are overdue. Open the app to follow up.</string>
+    <string name="nav_catalog">Catalog</string>
+    <string name="nav_scan">Scan</string>
+    <string name="nav_overdue">Overdue</string>
+    <string name="nav_leaderboard">Leaderboard</string>
+    <string name="search_hint">Search title or author</string>
+    <string name="category_story">Story</string>
+    <string name="category_science">Science</string>
+    <string name="category_history">History</string>
+    <string name="category_others">Others</string>
+    <string name="available">Available</string>
+    <string name="borrowed">Borrowed</string>
+    <string name="reserve">Reserve</string>
+    <string name="summary_kn">Summary (Kannada)</string>
+    <string name="publisher">Publisher</string>
+    <string name="pages">Pages</string>
+    <string name="reviews">Reviews</string>
+    <string name="add_review">Write review</string>
+    <string name="role_teacher">Teacher / Librarian</string>
+    <string name="role_student">Student</string>
+    <string name="pick_student_profile">Pick your student profile</string>
+    <string name="camera_permission_title">Camera access</string>
+    <string name="camera_permission_body">Camera is used to scan book QR codes and capture covers.</string>
+    <string name="grant_permission">Allow</string>
+    <string name="issue_to_student">Issue to student</string>
+    <string name="mark_returned">Mark as returned</string>
+    <string name="borrower">Borrower</string>
+    <string name="due_date">Due date</string>
+    <string name="add_book">Add book</string>
+    <string name="save">Save</string>
+    <string name="share_qr">Share QR</string>
+    <string name="extend_due">Extend due date</string>
+    <string name="archive_months">Last months (teacher)</string>
+    <string name="content_desc_cover">Book cover</string>
+    <string name="content_desc_qr">QR code for book</string>
+    <string name="content_desc_medal">Medal for rank</string>
+    <string name="isbn_scan_stub">ISBN captured (offline). Complete details manually if needed.</string>
+</resources>

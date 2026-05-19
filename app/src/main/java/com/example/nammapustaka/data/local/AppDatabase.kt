@@ -22,6 +22,12 @@ data class ActiveBorrowRow(
     val bookTitle: String,
 )
 
+data class AllBorrowRow(
+    @Embedded val txn: TransactionEntity,
+    val studentName: String,
+    val bookTitle: String,
+)
+
 data class LeaderboardRow(
     val studentId: String,
     val name: String,
@@ -63,6 +69,9 @@ interface BookDao {
 
     @Update
     suspend fun update(book: BookEntity): Unit
+
+    @Query("DELETE FROM books WHERE bookId = :bookId")
+    suspend fun deleteBookById(bookId: String)
 }
 
 @Dao
@@ -76,8 +85,23 @@ interface StudentDao {
     @Query("SELECT * FROM students WHERE studentId = :id LIMIT 1")
     suspend fun getStudent(id: String): StudentEntity?
 
+    @Query(
+        """
+        SELECT * FROM students
+        WHERE name LIKE '%' || :query || '%' COLLATE NOCASE
+        ORDER BY name COLLATE NOCASE ASC
+        """,
+    )
+    suspend fun searchStudents(query: String): List<StudentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(students: List<StudentEntity>): Unit
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(student: StudentEntity): Unit
+
+    @Query("DELETE FROM students")
+    suspend fun deleteAll(): Unit
 }
 
 @Dao
@@ -102,6 +126,41 @@ interface TransactionDao {
         """,
     )
     fun observeActiveBorrows(): Flow<List<ActiveBorrowRow>>
+
+    @Query(
+        """
+        SELECT t.*, s.name AS studentName, b.title AS bookTitle
+        FROM transactions t
+        INNER JOIN students s ON s.studentId = t.studentId
+        INNER JOIN books b ON b.bookId = t.bookId
+        WHERE t.status = 'RETURNED'
+        ORDER BY t.returnDate DESC
+        """,
+    )
+    fun observeReturnedBorrows(): Flow<List<AllBorrowRow>>
+
+    @Query(
+        """
+        SELECT t.*, s.name AS studentName, b.title AS bookTitle
+        FROM transactions t
+        INNER JOIN students s ON s.studentId = t.studentId
+        INNER JOIN books b ON b.bookId = t.bookId
+        ORDER BY t.issueDate DESC
+        """,
+    )
+    fun observeAllBorrows(): Flow<List<AllBorrowRow>>
+
+    @Query(
+        """
+        SELECT t.*, s.name AS studentName, b.title AS bookTitle
+        FROM transactions t
+        INNER JOIN students s ON s.studentId = t.studentId
+        INNER JOIN books b ON b.bookId = t.bookId
+        WHERE t.studentId = :studentId
+        ORDER BY t.issueDate DESC
+        """
+    )
+    fun observeBorrowsForStudent(studentId: String): Flow<List<AllBorrowRow>>
 
     @Query(
         """
@@ -181,9 +240,30 @@ interface ReviewDao {
     suspend fun update(review: ReviewEntity): Unit
 }
 
+@Dao
+interface AppUserDao {
+    @Query("SELECT * FROM app_users WHERE username = :username LIMIT 1")
+    suspend fun getByUsername(username: String): AppUserEntity?
+
+    @Query("SELECT * FROM app_users WHERE userId = :userId LIMIT 1")
+    suspend fun getById(userId: String): AppUserEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(user: AppUserEntity): Unit
+
+    @Query("SELECT EXISTS(SELECT 1 FROM app_users WHERE username = :username)")
+    suspend fun usernameExists(username: String): Boolean
+
+    @Update
+    suspend fun update(user: AppUserEntity): Unit
+
+    @Query("SELECT * FROM app_users WHERE displayName LIKE '%' || :query || '%' COLLATE NOCASE")
+    suspend fun searchUsersByDisplayName(query: String): List<AppUserEntity>
+}
+
 @Database(
-    entities = [BookEntity::class, StudentEntity::class, TransactionEntity::class, ReviewEntity::class],
-    version = 1,
+    entities = [BookEntity::class, StudentEntity::class, TransactionEntity::class, ReviewEntity::class, AppUserEntity::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -191,4 +271,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun studentDao(): StudentDao
     abstract fun transactionDao(): TransactionDao
     abstract fun reviewDao(): ReviewDao
+    abstract fun appUserDao(): AppUserDao
 }

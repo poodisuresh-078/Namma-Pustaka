@@ -1,8 +1,11 @@
 package com.example.nammapustaka.ui.screens
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -83,8 +91,24 @@ fun AddBookScreen(
             }
     }
 
+    val context = LocalContext.current
+
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
         if (bmp != null) cover = bmp
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bmp = BitmapFactory.decodeStream(inputStream)
+                if (bmp != null) {
+                    cover = bmp
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     Scaffold(
@@ -213,14 +237,41 @@ fun AddBookScreen(
                     }
                 }
             }
-            OutlinedButton(
-                onClick = { cameraLauncher.launch(null) },
+            cover?.let { bmp ->
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = "Book Cover Preview",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Fit
+                )
+            }
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = AppShape.field,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Capture cover (optional)")
+                OutlinedButton(
+                    onClick = { cameraLauncher.launch(null) },
+                    modifier = Modifier.weight(1f),
+                    shape = AppShape.field,
+                ) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Camera")
+                }
+                OutlinedButton(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f),
+                    shape = AppShape.field,
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Gallery")
+                }
             }
             Button(
                 onClick = {

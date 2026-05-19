@@ -19,6 +19,8 @@ datastore = "1.1.1"
 zxing = "3.5.3"
 lifecycleViewmodelCompose = "2.10.0"
 concurrentFuturesKtx = "1.2.0"
+firebaseBom = "33.9.0"
+googleServices = "4.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -52,9 +54,12 @@ camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFuturesKtx" }
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

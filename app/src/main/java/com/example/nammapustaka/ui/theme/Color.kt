@@ -2,13 +2,21 @@ package com.example.nammapustaka.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand (PRD)
-val DeepGreen = Color(0xFF1B5E20)
-val AmberAccent = Color(0xFFFFB300)
-val OverdueRed = Color(0xFFC62828)
+// Brand – purple/violet primary
+val VividPurple = Color(0xFF6C3CE1)
+val DeepPurple  = Color(0xFF4A148C)
+val LightPurple = Color(0xFFE8DEF8)
 
-// Surfaces — calm, paper-like neutrals
-val PageBackground = Color(0xFFF4F7F4)
-val SurfaceLight = Color(0xFFFFFFFF)
-val SurfaceMuted = Color(0xFFE8EEE8)
-val OutlineSoft = Color(0xFFB8C4B8)
+// Accent – teal / green
+val TealAccent  = Color(0xFF00BFA5)
+val LightTeal   = Color(0xFFB2DFDB)
+
+// Status
+val OverdueRed  = Color(0xFFC62828)
+val AmberAccent = Color(0xFFFFB300)
+
+// Surfaces
+val PageBackground = Color(0xFFF8F5FF)
+val SurfaceLight   = Color(0xFFFFFFFF)
+val SurfaceMuted   = Color(0xFFEDE7F6)
+val OutlineSoft    = Color(0xFFD1C4E9)

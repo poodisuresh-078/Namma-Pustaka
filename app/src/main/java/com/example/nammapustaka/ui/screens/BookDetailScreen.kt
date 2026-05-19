@@ -1,6 +1,15 @@
 package com.example.nammapustaka.ui.screens
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.navigation.NavController
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +23,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,6 +105,7 @@ fun BookDetailScreen(
     isTeacher: Boolean,
     currentStudentId: String?,
     onBack: () -> Unit,
+    navController: NavController? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -96,6 +118,21 @@ fun BookDetailScreen(
     var showIssueSheet by remember { mutableStateOf(false) }
     var showReviewSheet by remember { mutableStateOf(false) }
     var selectedStudentId by remember { mutableStateOf<String?>(null) }
+    var showEditSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var scannedIsbn by remember { mutableStateOf<String?>(null) }
+    val entry = navController?.currentBackStackEntry
+    if (entry != null) {
+        LaunchedEffect(entry) {
+            snapshotFlow { entry.savedStateHandle.get<String>("isbn_result") }
+                .filterNotNull()
+                .collect { v ->
+                    scannedIsbn = v
+                    entry.savedStateHandle.remove<String>("isbn_result")
+                    snackbarHostState.showSnackbar("ISBN Scanned: $v")
+                }
+        }
+    }
 
     var canReview by remember { mutableStateOf(false) }
     LaunchedEffect(currentStudentId, bookId, active) {
@@ -156,6 +193,12 @@ fun BookDetailScreen(
                 },
                 actions = {
                     if (isTeacher) {
+                        IconButton(onClick = { showEditSheet = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Book")
+                        }
+                        IconButton(onClick = { showDeleteConfirmation = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Book", tint = MaterialTheme.colorScheme.error)
+                        }
                         IconButton(
                             onClick = {
                                 val bmp = repo.buildQrBitmapForBook(b.bookId)
@@ -375,6 +418,78 @@ fun BookDetailScreen(
             },
         )
     }
+
+    if (showEditSheet && isTeacher) {
+        EditBookBottomSheet(
+            initialTitle = b.title,
+            initialAuthor = b.author,
+            initialPublisher = b.publisher,
+            initialPageCount = b.pageCount,
+            initialSummaryKn = b.summaryKn,
+            initialCategory = b.category,
+            initialIsbn = b.isbn.orEmpty(),
+            scannedIsbn = scannedIsbn,
+            onDismiss = { showEditSheet = false },
+            onScanIsbn = {
+                navController?.navigate("scan/isbn")
+            },
+            onSubmit = { title, author, publisher, pageCount, summaryKn, category, coverBitmap, isbnVal ->
+                scope.launch {
+                    runCatching {
+                        repo.updateBook(
+                            bookId = bookId,
+                            title = title,
+                            author = author,
+                            publisher = publisher,
+                            pageCount = pageCount,
+                            summaryKn = summaryKn,
+                            category = category,
+                            coverBitmap = coverBitmap,
+                            isbn = isbnVal
+                        )
+                    }.onSuccess {
+                        showEditSheet = false
+                        scannedIsbn = null
+                        snackbarHostState.showSnackbar("Book updated successfully")
+                    }.onFailure {
+                        snackbarHostState.showSnackbar(it.message ?: "Failed to update book")
+                    }
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmation && isTeacher) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete Book?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to permanently delete this book? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            runCatching {
+                                repo.deleteBook(bookId)
+                            }.onSuccess {
+                                showDeleteConfirmation = false
+                                onBack()
+                            }.onFailure {
+                                snackbarHostState.showSnackbar(it.message ?: "Failed to delete book")
+                            }
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -451,6 +566,19 @@ private fun IssueBottomSheet(
     onConfirm: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredStudents = remember(students, searchQuery) {
+        if (searchQuery.isBlank()) {
+            students
+        } else {
+            students.filter {
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                it.classSection.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             Modifier
@@ -459,23 +587,108 @@ private fun IssueBottomSheet(
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.issue_to_student), style = MaterialTheme.typography.titleLarge)
-            students.forEach { s ->
-                FilterChip(
-                    selected = selectedStudentId == s.studentId,
-                    onClick = { onSelectStudent(s.studentId) },
-                    label = { Text("${s.name} (${s.classSection})") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AppShape.chip,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
+            Text(stringResource(R.string.issue_to_student), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+            // Search box
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search by name or class (e.g. ISE A)") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Scrollable List of Students
+            Box(modifier = Modifier.height(300.dp)) {
+                if (filteredStudents.isEmpty()) {
+                    Text(
+                        text = "No students found",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredStudents, key = { it.studentId }) { s ->
+                            val isSelected = selectedStudentId == s.studentId
+                            Card(
+                                onClick = { onSelectStudent(s.studentId) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                    }
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = s.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            }
+                                        )
+                                        Text(
+                                            text = s.classSection,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                Button(onClick = onConfirm, modifier = Modifier.weight(1f), shape = AppShape.field) {
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(1f),
+                    shape = AppShape.field,
+                    enabled = selectedStudentId != null
+                ) {
                     Text(stringResource(R.string.reserve))
                 }
             }
@@ -539,3 +752,190 @@ private fun ReviewBottomSheet(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditBookBottomSheet(
+    initialTitle: String,
+    initialAuthor: String,
+    initialPublisher: String,
+    initialPageCount: Int,
+    initialSummaryKn: String,
+    initialCategory: String,
+    initialIsbn: String,
+    scannedIsbn: String?,
+    onDismiss: () -> Unit,
+    onScanIsbn: () -> Unit,
+    onSubmit: (String, String, String, Int, String, String, Bitmap?, String) -> Unit,
+) {
+    var title by remember { mutableStateOf(initialTitle) }
+    var author by remember { mutableStateOf(initialAuthor) }
+    var publisher by remember { mutableStateOf(initialPublisher) }
+    var pageCountText by remember { mutableStateOf(initialPageCount.toString()) }
+    var summaryKn by remember { mutableStateOf(initialSummaryKn) }
+    var category by remember { mutableStateOf(initialCategory) }
+    var isbn by remember { mutableStateOf(initialIsbn) }
+
+    LaunchedEffect(scannedIsbn) {
+        scannedIsbn?.let {
+            isbn = it
+        }
+    }
+
+    var cover by remember { mutableStateOf<Bitmap?>(null) }
+    val context = LocalContext.current
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
+        if (bmp != null) cover = bmp
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bmp = BitmapFactory.decodeStream(inputStream)
+                if (bmp != null) cover = bmp
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Edit Book Details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+            // Book Cover Preview and picker Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Card(
+                    modifier = Modifier.size(width = 80.dp, height = 110.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    if (cover != null) {
+                        Image(
+                            bitmap = cover!!.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Book, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Change Book Cover Image", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { cameraLauncher.launch(null) },
+                            shape = AppShape.chip,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Camera", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { galleryLauncher.launch("image/*") },
+                            shape = AppShape.chip,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Gallery", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Book Title *") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = author,
+                onValueChange = { author = it },
+                label = { Text("Author *") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = publisher,
+                onValueChange = { publisher = it },
+                label = { Text("Publisher *") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = pageCountText,
+                onValueChange = { pageCountText = it },
+                label = { Text("Pages *") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = category,
+                onValueChange = { category = it },
+                label = { Text("Category (Story, Science, History, Others) *") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = isbn,
+                onValueChange = { isbn = it },
+                label = { Text("ISBN (optional)") },
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    IconButton(onClick = onScanIsbn) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan ISBN")
+                    }
+                }
+            )
+
+            OutlinedTextField(
+                value = summaryKn,
+                onValueChange = { summaryKn = it },
+                label = { Text("Summary (Kannada)") },
+                minLines = 3,
+                shape = AppShape.field,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                Button(
+                    onClick = {
+                        val pc = pageCountText.toIntOrNull() ?: 0
+                        if (title.isNotBlank() && author.isNotBlank() && publisher.isNotBlank() && pc > 0 && category.isNotBlank()) {
+                            onSubmit(title, author, publisher, pc, summaryKn, category, cover, isbn)
+                        }
+                    },
+                    enabled = title.isNotBlank() && author.isNotBlank() && publisher.isNotBlank() && (pageCountText.toIntOrNull() ?: 0) > 0 && category.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                    shape = AppShape.field
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            }
+        }
+    }
+}
+

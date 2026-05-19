@@ -15,4 +15,5 @@ data class AppUserEntity(
     val role: String,
     val linkedStudentId: String?,
     val displayName: String,
+    val securityAnswer: String? = null,
 )

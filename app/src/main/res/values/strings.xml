@@ -8,7 +8,9 @@
     <string name="nav_catalog">Catalog</string>
     <string name="nav_scan">Scan</string>
     <string name="nav_overdue">Overdue</string>
+    <string name="nav_records">Records</string>
     <string name="nav_leaderboard">Leaderboard</string>
+    <string name="nav_requests">Requests</string>
     <string name="search_hint">Search title or author</string>
     <string name="category_story">Story</string>
     <string name="category_science">Science</string>

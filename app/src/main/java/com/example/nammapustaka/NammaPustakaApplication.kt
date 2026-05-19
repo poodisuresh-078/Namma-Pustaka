@@ -24,7 +24,21 @@ class NammaPustakaApplication : Application() {
         ensureNotificationChannel()
         OverdueNotificationScheduler.schedule(this)
         applicationScope.launch(Dispatchers.IO) {
-            libraryRepository.seedIfEmpty()
+            try {
+                libraryRepository.seedIfEmpty()
+            } catch (e: Exception) {
+                android.util.Log.e("NammaPustakaApplication", "Error seeding database", e)
+            }
+            try {
+                libraryRepository.syncAllLocalStudentsToFirestore()
+            } catch (e: Exception) {
+                android.util.Log.e("NammaPustakaApplication", "Error syncing students", e)
+            }
+            try {
+                libraryRepository.startFirestoreStudentSync(applicationScope)
+            } catch (e: Exception) {
+                android.util.Log.e("NammaPustakaApplication", "Error starting student sync", e)
+            }
         }
     }
 
